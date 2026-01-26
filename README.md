@@ -41,3 +41,14 @@ No.
 # platforms
 The Anycubic Kobra printers are powered by the Rockchip RV1106. The display is controlled via frame buffer. And since
 the screen orientation varies across the models this in currently only adapted to the S1.
+
+# prerequisites
+- [`task`](https://taskfile.dev/docs/installation)
+- `make`
+
+# compile
+```bash
+task [--force # for rebuiild]
+task deploy   # to scp binary to kobra printer
+task -a       # list available task
+```
