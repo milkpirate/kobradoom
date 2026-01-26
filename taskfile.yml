@@ -3,6 +3,7 @@ version: "3"
 vars:
   target: kobra
   src: doomgeneric/
+  binary: kobradoom
 
 tasks:
   submodule:
@@ -16,7 +17,7 @@ tasks:
     desc: Clean and build for Kobra (force a rebuild with --force)
     dir: "{{ .src }}"
     status:
-      - test -f kobradoom
+      - test -f {{ .binary }}
       - '[[ "{{ .CLI_FORCE }}" == "false" ]]'
     cmds:
       - task: submodule
@@ -28,4 +29,4 @@ tasks:
     dir: "{{ .src }}"
     cmds:
       - task: default
-      - scp kobradoom {{ .target }}:/tmp/
+      - scp {{ .binary }} {{ .target }}:/tmp/
