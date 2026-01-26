@@ -1,3 +1,5 @@
+!**
+
 *.o
 *.obj
 *.exe
@@ -6,8 +8,11 @@
 *.user
 *~
 .vs/
+.idea/
 Debug/
 Release/
 Build/
+
 doomgeneric
 doomgeneric.map
+!doomgeneric/

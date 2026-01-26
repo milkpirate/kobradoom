@@ -1,0 +1,22 @@
+version: "3"
+
+vars:
+  target: kobra
+
+tasks:
+  default:
+    desc: Clean and build for Kobra (force a rebuild with --force)
+    dir: doomgeneric/
+    status:
+      - test -f doomgeneric
+      - '[[ "{{ .CLI_FORCE }}" == "false" ]]'
+    cmds:
+      - make -f Makefile.{{ .target }} -j{{ numCPU }} clean
+      - make -f Makefile.{{ .target }} -j{{ numCPU }}
+
+  deploy:
+    desc: Deploy to target Kobra
+    dir: doomgeneric/
+    cmds:
+      - task: default
+      - scp doomgeneric {{ .target }}:/tmp/
