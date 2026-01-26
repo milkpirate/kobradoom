@@ -2,21 +2,30 @@ version: "3"
 
 vars:
   target: kobra
+  src: doomgeneric/
 
 tasks:
+  submodule:
+    desc: Initialize submodules
+    status:
+      - test -d rv1106-cross-compilation-toolchain
+    cmds:
+      - git submodule update --init
+
   default:
     desc: Clean and build for Kobra (force a rebuild with --force)
-    dir: doomgeneric/
+    dir: "{{ .src }}"
     status:
-      - test -f doomgeneric
+      - test -f kobradoom
       - '[[ "{{ .CLI_FORCE }}" == "false" ]]'
     cmds:
+      - task: submodule
       - make -f Makefile.{{ .target }} -j{{ numCPU }} clean
       - make -f Makefile.{{ .target }} -j{{ numCPU }}
 
   deploy:
     desc: Deploy to target Kobra
-    dir: doomgeneric/
+    dir: "{{ .src }}"
     cmds:
       - task: default
-      - scp doomgeneric {{ .target }}:/tmp/
+      - scp kobradoom {{ .target }}:/tmp/
