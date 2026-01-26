@@ -274,8 +274,6 @@ void DG_DrawFrame(void)
         }
         src_y_fixed -= y_step;
     }
-
-    frame_count++;
 }
 
 int DG_GetKey(int* pressed, unsigned char* doomKey)
