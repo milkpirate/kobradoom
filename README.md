@@ -43,6 +43,7 @@ The Anycubic Kobra printers are powered by the Rockchip RV1106. The display is c
 the screen orientation varies across the models this in currently only adapted to the S1.
 
 # prerequisites
+- Installed [Rinkhals](https://github.com/jbatonnet/Rinkhals) for SSH access.
 - [`task`](https://taskfile.dev/docs/installation)
 - `make`
 
