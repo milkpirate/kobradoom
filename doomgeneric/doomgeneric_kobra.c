@@ -10,9 +10,10 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
+#include <time.h>
 #include <linux/fb.h>
 #include <errno.h>
+#include <arm_neon.h>
 
 #include "usb_hid_keys.h"
 
@@ -26,10 +27,25 @@ static uint32_t *fb_mem = NULL;
 static struct fb_var_screeninfo vinfo;
 static struct fb_fix_screeninfo finfo;
 
+static uint32_t x_lut[1024]; // bug enough for target resolution (e.g. 840)
+
+static void init_x_lut(int dst_w) {
+    uint32_t x_step = (DOOMGENERIC_RESX << 16) / dst_w;
+    uint32_t cur_x = 0;
+    for (int x = 0; x < dst_w; x++) {
+        x_lut[x] = cur_x >> 16;
+        cur_x += x_step;
+    }
+}
+
+
+static uint32_t rotated_buffer[DOOMGENERIC_RESX * DOOMGENERIC_RESY];
+
+
 /* ─────────────────────────────────────────────────────────────────────────
    Timing
    ───────────────────────────────────────────────────────────────────────── */
-static struct timeval start_time;
+static struct timespec start_time;
 
 /* ─────────────────────────────────────────────────────────────────────────
    HID
@@ -51,16 +67,18 @@ static unsigned char hid_to_doom(const unsigned char hid_code) {
     if (hid_code >= KEY_HID_A && hid_code <= KEY_HID_Z) {
         return 'a' + (hid_code - KEY_HID_A);
     }
+
     // Numbers 1-9 (HID 0x1E-0x26)...
     if (hid_code >= KEY_HID_1 && hid_code <= KEY_HID_9) {
         return '1' + (hid_code - KEY_HID_1);
     }
+
     // ...and 0 (HID 0x27) are standard in HID tables.
     if (hid_code == KEY_HID_0) {
         return '0';
     }
-    // Special Keys
 
+    // Special Keys
     switch (hid_code) {
         // Navigation Keys
         case KEY_HID_RIGHT: return KEY_RIGHTARROW;
@@ -186,10 +204,10 @@ static void handle_key_changes(const uint8_t prev_keys[6], const uint8_t cur_key
     }
 }
 
-void read_hid_report_queue(void) {
+static void read_hid_report_queue(void) {
     static uint8_t latest_report[8] = {0};
 
-    while (1) {
+    while(true) {
         uint8_t raw_buf[64];
 
         auto n = read(hid_fd, raw_buf, sizeof(raw_buf));
@@ -221,7 +239,7 @@ void read_hid_report_queue(void) {
         handle_modifier_changes(prev_mod, cur_mod);
         handle_key_changes(prev_keys, cur_keys);
 
-        memcpy(latest_report, report, 8);
+        memcpy(latest_report, report, sizeof latest_report);
     }
 }
 
@@ -229,38 +247,63 @@ void read_hid_report_queue(void) {
    doomgeneric interface
    ───────────────────────────────────────────────────────────────────────── */
 
-void DG_DrawFrame(void)
-{
-    // draw frame
-    uint32_t* const src = DG_ScreenBuffer;
+void DG_DrawFrame(void) {
     const int src_w = DOOMGENERIC_RESX;
     const int src_h = DOOMGENERIC_RESY;
-    const uint32_t dst_w = vinfo.xres;
-    const uint32_t dst_h = vinfo.yres;
+    const int dst_w = vinfo.xres;
+    const int dst_h = vinfo.yres;
     const uint32_t fb_stride = finfo.line_length / sizeof(uint32_t);
 
-    // Use fixed-point math for efficient scaling.
-    // The 16 extra bits of precision avoid floating point math.
-    const uint32_t y_step = ((uint32_t)src_h << 16) / (uint32_t)dst_h;
-    const uint32_t x_step = ((uint32_t)src_w << 16) / (uint32_t)dst_w;
+    // --- STEP 1: 180° Rotation (2-Way Interleaved NEON) ---
+    // We process 8 pixels per iteration to hide memory latency.
+    // Reading forward from s_ptr, writing backward from d_ptr.
+    uint32_t* s_ptr = (uint32_t*)DG_ScreenBuffer;
+    uint32_t* d_ptr = rotated_buffer + (src_w * src_h) - 8;
 
-    // Start from the last line of the source buffer for 180-degree rotation.
-    uint32_t src_y_fixed = (dst_h - 1) * y_step + y_step / 2;
+    for (int i = 0; i < (src_w * src_h) / 8; i++) {
+        // Load two 128-bit vectors (8 pixels total)
+        uint32x4_t v1 = vld1q_u32(s_ptr);
+        uint32x4_t v2 = vld1q_u32(s_ptr + 4);
 
-    for (int dst_y = 0; dst_y < dst_h; dst_y++)
-    {
-        const uint32_t* src_line = src + (src_y_fixed >> 16) * src_w;
-        uint32_t* dst_line = fb_mem + dst_y * fb_stride;
+        // Flip vectors: [A,B,C,D] -> [D,C,B,A]
+        // vrev64 swaps lanes within 64-bit halves, vcombine reorders the halves
+        uint32x4_t f1 = vcombine_u32(vrev64_u32(vget_high_u32(v1)), vrev64_u32(vget_low_u32(v1)));
+        uint32x4_t f2 = vcombine_u32(vrev64_u32(vget_high_u32(v2)), vrev64_u32(vget_low_u32(v2)));
 
-        // Start from the last column of the source line for 180-degree rotation.
-        uint32_t src_x_fixed = (dst_w - 1) * x_step + x_step / 2;
+        // Store flipped vectors in reverse order
+        vst1q_u32(d_ptr + 4, f1);
+        vst1q_u32(d_ptr, f2);
 
-        for (int dst_x = 0; dst_x < dst_w; dst_x++)
-        {
-            dst_line[dst_x] = src_line[src_x_fixed >> 16];
-            src_x_fixed -= x_step;
+        s_ptr += 8;
+        d_ptr -= 8;
+    }
+
+    // --- STEP 2: Scaling with Precomputed LUT & NEON Store ---
+    const uint32_t y_step = (src_h << 16) / dst_h;
+    uint32_t cur_y_fixed = 0;
+
+    for (int y = 0; y < dst_h; y++) {
+        uint32_t* src_line = rotated_buffer + (cur_y_fixed >> 16) * src_w;
+        uint32_t* dst_line = fb_mem + y * fb_stride;
+
+        int x = 0;
+        // Unroll by 4: Use LUT for gathering, NEON for wide 128-bit stores
+        for (; x <= dst_w - 4; x += 4) {
+            // Initialize vector with the first pixel to avoid uninitialized stalls
+            uint32x4_t v_pix = vdupq_n_u32(src_line[x_lut[x]]);
+            v_pix = vsetq_lane_u32(src_line[x_lut[x+1]], v_pix, 1);
+            v_pix = vsetq_lane_u32(src_line[x_lut[x+2]], v_pix, 2);
+            v_pix = vsetq_lane_u32(src_line[x_lut[x+3]], v_pix, 3);
+
+            // Optimized store directly to the framebuffer
+            vst1q_u32(&dst_line[x], v_pix);
         }
-        src_y_fixed -= y_step;
+
+        // Handle remaining pixels if width is not a multiple of 4
+        for (; x < dst_w; x++) {
+            dst_line[x] = src_line[x_lut[x]];
+        }
+        cur_y_fixed += y_step;
     }
 }
 
@@ -288,7 +331,7 @@ void DG_Init(void) {
     setvbuf(stderr, NULL, _IONBF, 0);
 
     /* ── Open framebuffer ── */
-    auto fb_fd = open(framebuffer_dev_path, O_RDWR);
+    const auto fb_fd = open(framebuffer_dev_path, O_RDWR);
     if (fb_fd < 0) {
         fprintf(stderr, "cannot open framebuffer device file: %s - %s\n", framebuffer_dev_path, strerror(errno));
     }
@@ -305,8 +348,10 @@ void DG_Init(void) {
         fprintf(stderr, "cannot memory map framebuffer: %s\n", strerror(errno));
     }
 
+    init_x_lut(vinfo.xres);
+
     /* ── Open keyboard ── */
-    const char *hid_dev = getenv("DOOM_KBDEV");
+    const auto *hid_dev = getenv("DOOM_KBDEV");
     if (!hid_dev) {
         hid_dev = default_hid_dev_path;
     }
@@ -316,7 +361,7 @@ void DG_Init(void) {
         fprintf(stderr, "cannot open HID device %s: %s\n", hid_dev, strerror(errno));
     }
 
-    gettimeofday(&start_time, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
 }
 
 void DG_SleepMs(const uint32_t ms) {
@@ -324,9 +369,9 @@ void DG_SleepMs(const uint32_t ms) {
 }
 
 uint32_t DG_GetTicksMs(void) {
-    struct timeval now;
-    gettimeofday(&now, NULL);
-    return (now.tv_sec  - start_time.tv_sec)  * 1000 + (now.tv_usec - start_time.tv_usec) / 1000;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec - start_time.tv_sec) * 1000 + (ts.tv_nsec - start_time.tv_nsec) / 1000000;
 }
 
 void DG_SetWindowTitle(const char *title) {
@@ -337,7 +382,7 @@ void DG_SetWindowTitle(const char *title) {
    Entrypoint
    ───────────────────────────────────────────────────────────────────────── */
 
-int main(int argc, char **argv) {
+int main(const int argc, const char **argv) {
     doomgeneric_Create(argc, argv);
     while(true) {
         doomgeneric_Tick();
