@@ -16,9 +16,10 @@ CC      := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)gcc
 AR      := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)ar
 STRIP   := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)strip
 
-COMM_FLAGS += -O0 -Wall -ggdb3 -ffunction-sections -fdata-sections
+COMM_FLAGS += -Os -Wall -ffunction-sections -fdata-sections
 COMM_FLAGS += -DNORMALUNIX -DLINUX -D_DEFAULT_SOURCE -DNONET -DSNDSERV
 #COMM_FLAGS += -DDOOMGENERIC_RESX=840 -DDOOMGENERIC_RESY=400 # force screen resolution
+#COMM_FLAGS += -ggdb3 -O0	# enable debugging, last settings have precedence
 
 CFLAGS  += $(COMM_FLAGS) -std=gnu99
 CXXFLAGS += $(COMM_FLAGS) -std=c++17
@@ -48,7 +49,7 @@ $(OUTPUT): $(OBJS)
 	@echo [Linking $@]
 	$(VB)$(CXX) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $(OUTPUT) $(LIBS) -Wl,-Map,$(OUTPUT).map
 	@echo [Strip $@]
-#	-$(STRIP) $(OUTPUT)
+	-$(STRIP) $(OUTPUT)
 	@echo [Size $@]
 	-$(CROSS_COMPILE)size -A -d $(OUTPUT) | numfmt --header=2 --field=2 --to=iec
 
