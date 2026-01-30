@@ -11,15 +11,19 @@ TOOLCHAIN_DIR := $(dir $(mkfile_path))../rv1106-cross-compilation-toolchain/arm-
 PATH += :$(TOOLCHAIN_DIR)/bin
 CROSS_COMPILE ?= arm-rockchip830-linux-uclibcgnueabihf-
 
+CXX     := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)g++
 CC      := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)gcc
 AR      := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)ar
 STRIP   := $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)strip
 
-CFLAGS  += -Os -std=gnu99 -ffunction-sections -fdata-sections
-CFLAGS  += -DNORMALUNIX -DLINUX -D_DEFAULT_SOURCE -DNONET
-CFLAGS  += -ggdb3 -Wall -DSNDSERV -std=c99
+COMM_FLAGS += -O0 -Wall -ggdb3 -ffunction-sections -fdata-sections
+COMM_FLAGS += -DNORMALUNIX -DLINUX -D_DEFAULT_SOURCE -DNONET -DSNDSERV
+#COMM_FLAGS += -DDOOMGENERIC_RESX=840 -DDOOMGENERIC_RESY=400 # force screen resolution
 
-LDFLAGS += -static -Wl,--gc-sections
+CFLAGS  += $(COMM_FLAGS) -std=c99
+CXXFLAGS += $(COMM_FLAGS) -std=c++17
+
+LDFLAGS += -Wl,--gc-sections
 
 SYSROOT  := $(TOOLCHAIN_DIR)/arm-rockchip830-linux-uclibcgnueabihf/sysroot
 CFLAGS   += --sysroot=$(SYSROOT) -I$(SYSROOT)/usr/include
@@ -42,10 +46,9 @@ clean:
 
 $(OUTPUT): $(OBJS)
 	@echo [Linking $@]
-	$(VB)$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
-		-o $(OUTPUT) $(LIBS) -Wl,-Map,$(OUTPUT).map
+	$(VB)$(CXX) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $(OUTPUT) $(LIBS) -Wl,-Map,$(OUTPUT).map
 	@echo [Strip $@]
-	-$(STRIP) $(OUTPUT)
+#	-$(STRIP) $(OUTPUT)
 	@echo [Size $@]
 	-$(CROSS_COMPILE)size -A -d $(OUTPUT) | numfmt --header=2 --field=2 --to=iec
 
@@ -55,8 +58,12 @@ $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
 $(OBJDIR)/%.o: %.c
-	@echo [Compiling $<]
+	@echo [Compiling C $<]
 	$(VB)$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: %.cpp
+	@echo [Compiling C++ $<]
+	$(VB)$(CXX) $(CFLAGS) -c $< -o $@
 
 print:
     @echo OBJS: $(OBJS)

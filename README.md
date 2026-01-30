@@ -3,14 +3,14 @@ doomgeneric port to the Anycubic Kobra S1. To try it you will need a WAD file (g
 shareware version is freely available (e.g. here: [doom1.wad](https://doomwiki.org/wiki/DOOM1.WAD)).
 
 # port
-|Functions            | Description                                                             |
-|---------------------|-------------------------------------------------------------------------|
-|DG_Init              | Initialize framebuffer and HID device file                              | 
-|DG_DrawFrame         | If a frame is ready in DG_ScreenBuffer, it draws it to the frame buffer |
-|DG_SleepMs           | Sleep in milliseconds                                                   |
-|DG_GetTicksMs        | The ticks passed since launch in milliseconds.                          |
-|DG_GetKey            | Provide keyboard events from HID                                        |
-|DG_SetWindowTitle    | Not required.                                                           |
+| Functions           | Description                                                             |
+|:--------------------|:------------------------------------------------------------------------|
+| DG_Init             | Initialize framebuffer and HID device file                              | 
+| DG_DrawFrame        | If a frame is ready in DG_ScreenBuffer, it draws it to the frame buffer |
+| DG_SleepMs          | Sleep in milliseconds                                                   |
+| DG_GetTicksMs       | The ticks passed since launch in milliseconds.                          |
+| DG_GetKey           | Provide keyboard events from HID                                        |
+| DG_SetWindowTitle   | Not required.                                                           |
 
 All details are in 
 [`doomgeneric_kobra.c`](./doomgeneric/doomgeneric_kobra.c) and 
