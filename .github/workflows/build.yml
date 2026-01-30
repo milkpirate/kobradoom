@@ -1,0 +1,38 @@
+name: compile kobradoom
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.git_ref || github.ref_name }}
+          submodules: recursive
+          lfs: true
+          fetch-depth: 0   # fetch full history and tags so git describe works
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends build-essential
+
+      - name: Install Task
+        uses: go-task/setup-task@v1
+
+      - name: Build
+        run: task # default = build
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kobradoom-${{ inputs.git_ref }}-${{ github.sha }}
+          path: doomgeneric/kobradoom
