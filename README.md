@@ -2,6 +2,10 @@
 doomgeneric port to the Anycubic Kobra S1. To try it you will need a WAD file (game data). If you don't own the game,
 shareware version is freely available (e.g. here: [doom1.wad](https://doomwiki.org/wiki/DOOM1.WAD)).
 
+<img src="screenshots/kobra.jpg" height="600">
+
+<video src="screenshots/kobra_gameplay.mp4" controls preload></video>
+
 # port
 | Functions           | Description                                                             |
 |:--------------------|:------------------------------------------------------------------------|
@@ -44,7 +48,7 @@ the screen orientation varies across the models this in currently only adapted t
 
 # prerequisites
 - Installed [Rinkhals](https://github.com/jbatonnet/Rinkhals) for SSH access.
-- [`task`](https://taskfile.dev/docs/installation)
+- [`task`](https://taskfile.dev/docs/installation) (kinda optional, have a look at [taskfile.yml](taskfile.yml) for `make` commands)
 - `make`
 
 # compile
