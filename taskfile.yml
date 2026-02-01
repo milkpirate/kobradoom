@@ -1,32 +1,51 @@
 version: "3"
 
+
 vars:
   target: kobra
-  src: doomgeneric/
+  src: doomgeneric
   binary: kobradoom
 
+
 tasks:
+  .make:*:
+    internal: true
+    dir: "{{ .src }}"
+    cmds:
+      - make -f Makefile.{{ .target }} -j{{ numCPU }} {{ index .MATCH 0 }}
+
   submodule:
-    desc: Initialize submodules
+    desc: Initialize submodules.
     status:
       - test -d rv1106-cross-compilation-toolchain
     cmds:
       - git submodule update --init
 
-  default:
-    desc: Clean and build for Kobra (force a rebuild with --force)
-    dir: "{{ .src }}"
-    status:
-      - test -f {{ .binary }}
-      - '[[ "{{ .CLI_FORCE }}" == "false" ]]'
+  clean:
+    desc: Clean current build artifacts.
     cmds:
-      - task: submodule
-      - make -f Makefile.{{ .target }} -j{{ numCPU }} clean
-      - make -f Makefile.{{ .target }} -j{{ numCPU }}
+      - task: .make:clean
+
+  default:
+    desc: Build for Kobra.
+    run: once
+    deps:
+      - submodule
+    sources:
+      - doomgeneric_kobra.c
+      - Makefile.kobra
+      - '*.c'
+      - '*.h'
+    generates:
+      - '{{ .binary }}'
+    cmds:
+      - task: '.make:'
 
   deploy:
-    desc: Deploy to target Kobra
-    dir: "{{ .src }}"
+    desc: Deploy to target Kobra.
+    deps:
+      - default
+    preconditions:
+      - test -f {{ .src }}/{{ .binary }}
     cmds:
-      - task: default
-      - scp {{ .binary }} {{ .target }}:/tmp/
+      - scp {{ .src }}/{{ .binary }} {{ .target }}:/tmp/

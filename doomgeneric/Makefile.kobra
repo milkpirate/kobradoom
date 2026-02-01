@@ -4,6 +4,8 @@ else
     VB=@
 endif
 
+.DELETE_ON_ERROR:
+
 # Get directory of this Makefile (portable, no shell PATH pollution)
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 TOOLCHAIN_DIR := $(dir $(mkfile_path))../rv1106-cross-compilation-toolchain/arm-rockchip830-linux-uclibcgnueabihf
@@ -39,19 +41,21 @@ SRC_DOOM = dummy.o am_map.o doomdef.o doomstat.o dstrings.o d_event.o d_items.o 
 
 OBJS = $(addprefix $(OBJDIR)/, $(SRC_DOOM))
 
+
 all: $(OUTPUT)
 
 clean:
 	rm -rf $(OBJDIR)
 	rm -f $(OUTPUT) $(OUTPUT).gdb $(OUTPUT).map
 
+.PRECIOUS: $(OUTPUT)
 $(OUTPUT): $(OBJS)
 	@echo [Linking $@]
 	$(VB)$(CXX) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $(OUTPUT) $(LIBS) -Wl,-Map,$(OUTPUT).map
 	@echo [Strip $@]
-	-$(STRIP) $(OUTPUT)
+	$(STRIP) $(OUTPUT) || true
 	@echo [Size $@]
-	-$(CROSS_COMPILE)size -A -d $(OUTPUT) | numfmt --header=2 --field=2 --to=iec
+	$(CROSS_COMPILE)size -A -d $(OUTPUT) | numfmt --header=2 --field=2 --to=iec || true
 
 $(OBJS): | $(OBJDIR)
 
